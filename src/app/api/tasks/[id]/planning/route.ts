@@ -102,11 +102,27 @@ export async function GET(
     }
 
     // Parse planning messages from JSON
-    const messages = task.planning_messages ? JSON.parse(task.planning_messages) : [];
+    let messages = task.planning_messages ? JSON.parse(task.planning_messages) : [];
     
     // Find the latest question (last assistant message with question structure)
-    const lastAssistantMessage = [...messages].reverse().find((m: { role: string }) => m.role === 'assistant');
+    let lastAssistantMessage = [...messages].reverse().find((m: { role: string }) => m.role === 'assistant');
     let currentQuestion = null;
+    
+    // If no assistant response in DB but session exists, check OpenClaw for new messages
+    if (!lastAssistantMessage && task.planning_session_key && messages.length > 0) {
+      console.log('[Planning GET] No assistant message in DB, checking OpenClaw...');
+      const openclawMessages = await getMessagesFromOpenClaw(task.planning_session_key);
+      if (openclawMessages.length > 0) {
+        const newAssistant = [...openclawMessages].reverse().find(m => m.role === 'assistant');
+        if (newAssistant) {
+          console.log('[Planning GET] Found assistant message in OpenClaw, syncing to DB');
+          messages.push({ role: 'assistant', content: newAssistant.content, timestamp: Date.now() });
+          getDb().prepare('UPDATE tasks SET planning_messages = ? WHERE id = ?')
+            .run(JSON.stringify(messages), taskId);
+          lastAssistantMessage = { role: 'assistant', content: newAssistant.content };
+        }
+      }
+    }
     
     if (lastAssistantMessage) {
       // Use extractJSON to handle code blocks and surrounding text
