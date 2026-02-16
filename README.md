@@ -4,9 +4,9 @@
 
 Mission Control is a task management system that lets you create tasks, plan them through an AI-guided Q&A process, and automatically dispatch them to AI agents for execution. Think of it as a project manager for AI workers.
 
-![Version](https://img.shields.io/badge/Version-1.0.0-green) ![Next.js](https://img.shields.io/badge/Next.js-15-black) ![License](https://img.shields.io/badge/License-MIT-blue)
+![Version](https://img.shields.io/badge/Version-1.1.0-green) ![Next.js](https://img.shields.io/badge/Next.js-14-black) ![License](https://img.shields.io/badge/License-MIT-blue)
 
-> **🎉 v1.0.0 Released!** First official working build. See [CHANGELOG.md](CHANGELOG.md) for details.
+> **🔒 v1.1.0 Released!** Security hardening, auth middleware, input validation, and device identity. See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ![Mission Control Screenshot](mission-control.png)
 

@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-02-16
+
+### 🔒 Security
+
+- **API Authentication Middleware** — Bearer token authentication for all API routes. Set `MC_API_TOKEN` in `.env.local` to enable. Same-origin browser requests are automatically allowed.
+- **Webhook HMAC-SHA256 Validation** — Agent completion webhooks now require a valid `X-Webhook-Signature` header. Set `WEBHOOK_SECRET` in `.env.local` to enable.
+- **Path Traversal Protection** — File download endpoint now uses `realpathSync` to resolve symlinks and validate all paths are within the allowed directory.
+- **Error Message Sanitization** — API error responses no longer leak internal details (stack traces, file paths) in production.
+- **Security Headers** — Added `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, and `Permissions-Policy` headers via Next.js config.
+- **Input Validation (Zod)** — Request payloads for tasks, agents, and workspaces are validated with Zod schemas before processing.
+- **Repository Audit** — Purged sensitive files from git history, updated `.gitignore` to block database files and backups.
+
+### Added
+
+- **Ed25519 Device Identity** — Gateway pairing now uses Ed25519 key-based device identity for secure handshakes.
+- **ARIA Hook** — Real-time agent tracking bridge between ARIA and Mission Control (`scripts/aria-mc-hook.sh`).
+- **Planning Poll Endpoint** — New `POST /api/tasks/[id]/planning/poll` for long-poll planning updates.
+- **Retry Dispatch** — New `POST /api/tasks/[id]/planning/retry-dispatch` to retry failed task dispatches.
+- **Auto-Dispatch Module** — `src/lib/auto-dispatch.ts` for automatic task assignment after planning.
+- **Planning Utilities** — `src/lib/planning-utils.ts` with shared planning logic.
+- **MC Bridge Scripts** — Python and shell bridge scripts for external integrations.
+
+### Changed
+
+- **Node.js v25 Support** — Updated `better-sqlite3` to v12.6.2 for Node v25 compatibility.
+- **Default Port** — Mission Control now defaults to port 4000 (previously 3000).
+- **Improved Planning Tab** — Enhanced UI with better question rendering, progress tracking, and error handling.
+- **Agent Sidebar Improvements** — Better status display, model selection, and agent management.
+- **Activity Log Overhaul** — Cleaner timeline UI with better type icons and formatting.
+- **Live Feed Improvements** — Better real-time event display with filtering options.
+
+### Fixed
+
+- **Same-origin browser requests** — Auth middleware no longer blocks the UI's own API calls.
+
+---
+
 ## [1.0.1] - 2026-02-04
 
 ### Changed
@@ -88,18 +125,20 @@ This is the first stable, tested, and working release of Mission Control.
 
 ---
 
-## Future Plans
+## Roadmap
 
-- [ ] Multiple workspaces
+- [x] Multiple workspaces
+- [x] Webhook integrations
+- [x] API authentication & security hardening
 - [ ] Team collaboration
 - [ ] Task dependencies
 - [ ] Agent performance metrics
-- [ ] Webhook integrations
 - [ ] Mobile-responsive improvements
 - [ ] Dark/light theme toggle
 
 ---
 
+[1.1.0]: https://github.com/crshdn/mission-control/releases/tag/v1.1.0
 [1.0.1]: https://github.com/crshdn/mission-control/releases/tag/v1.0.1
 [1.0.0]: https://github.com/crshdn/mission-control/releases/tag/v1.0.0
 [0.1.0]: https://github.com/crshdn/mission-control/releases/tag/v0.1.0
