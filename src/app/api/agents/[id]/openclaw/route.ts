@@ -84,10 +84,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Store the link in our database - session ID will be set when first message is sent
-    // For now, use agent name as the session identifier
+    // Store the link in our database
+    // Accept an optional openclaw_session_id from the request body to link to an existing session
+    const body = await request.json().catch(() => ({}));
     const sessionId = uuidv4();
-    const openclawSessionId = `mission-control-${agent.name.toLowerCase().replace(/\s+/g, '-')}`;
+    const openclawSessionId = body.openclaw_session_id || `mission-control-${agent.name.toLowerCase().replace(/\s+/g, '-')}`;
     const now = new Date().toISOString();
 
     run(

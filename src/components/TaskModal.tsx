@@ -22,6 +22,7 @@ interface TaskModalProps {
 export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
   const { agents, addTask, updateTask, addEvent } = useMissionControl();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [usePlanningMode, setUsePlanningMode] = useState(false);
   // Auto-switch to planning tab if task is in planning status
@@ -44,6 +45,7 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setErrorMessage(null);
 
     try {
       const url = task ? `/api/tasks/${task.id}` : '/api/tasks';
@@ -64,62 +66,68 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
         body: JSON.stringify(payload),
       });
 
-      if (res.ok) {
-        const savedTask = await res.json();
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        const message = errorData?.error || errorData?.details?.[0]?.message || `Failed to save task (${res.status})`;
+        setErrorMessage(message);
+        return;
+      }
 
-        if (task) {
-          updateTask(savedTask);
+      const savedTask = await res.json();
 
-          // Check if auto-dispatch should be triggered and execute it
-          if (shouldTriggerAutoDispatch(task.status, savedTask.status, savedTask.assigned_agent_id)) {
-            const result = await triggerAutoDispatch({
-              taskId: savedTask.id,
-              taskTitle: savedTask.title,
-              agentId: savedTask.assigned_agent_id,
-              agentName: savedTask.assigned_agent?.name || 'Unknown Agent',
-              workspaceId: savedTask.workspace_id
-            });
+      if (task) {
+        updateTask(savedTask);
 
-            if (!result.success) {
-              console.error('Auto-dispatch failed:', result.error);
-            }
-          }
-
-          onClose();
-        } else {
-          addTask(savedTask);
-          addEvent({
-            id: crypto.randomUUID(),
-            type: 'task_created',
-            task_id: savedTask.id,
-            message: `New task: ${savedTask.title}`,
-            created_at: new Date().toISOString(),
+        // Check if auto-dispatch should be triggered and execute it
+        if (shouldTriggerAutoDispatch(task.status, savedTask.status, savedTask.assigned_agent_id)) {
+          const result = await triggerAutoDispatch({
+            taskId: savedTask.id,
+            taskTitle: savedTask.title,
+            agentId: savedTask.assigned_agent_id,
+            agentName: savedTask.assigned_agent?.name || 'Unknown Agent',
+            workspaceId: savedTask.workspace_id
           });
 
-          // If planning mode is enabled, auto-generate questions and keep modal open
-          if (usePlanningMode) {
-            // Trigger question generation in background
-            fetch(`/api/tasks/${savedTask.id}/planning`, { method: 'POST' })
-              .then((res) => {
-                if (res.ok) {
-                  // Update our local task reference and switch to planning tab
-                  updateTask({ ...savedTask, status: 'planning' });
-                  setActiveTab('planning');
-                } else {
-                  return res.json().then((data) => {
-                    console.error('Failed to start planning:', data.error);
-                  });
-                }
-              })
-              .catch((error) => {
-                console.error('Failed to start planning:', error);
-              });
+          if (!result.success) {
+            console.error('Auto-dispatch failed:', result.error);
           }
-          onClose();
         }
+
+        onClose();
+      } else {
+        addTask(savedTask);
+        addEvent({
+          id: crypto.randomUUID(),
+          type: 'task_created',
+          task_id: savedTask.id,
+          message: `New task: ${savedTask.title}`,
+          created_at: new Date().toISOString(),
+        });
+
+        // If planning mode is enabled, auto-generate questions and keep modal open
+        if (usePlanningMode) {
+          // Trigger question generation in background
+          fetch(`/api/tasks/${savedTask.id}/planning`, { method: 'POST' })
+            .then((res) => {
+              if (res.ok) {
+                // Update our local task reference and switch to planning tab
+                updateTask({ ...savedTask, status: 'planning' });
+                setActiveTab('planning');
+              } else {
+                return res.json().then((data) => {
+                  console.error('Failed to start planning:', data.error);
+                });
+              }
+            })
+            .catch((error) => {
+              console.error('Failed to start planning:', error);
+            });
+        }
+        onClose();
       }
     } catch (error) {
       console.error('Failed to save task:', error);
+      setErrorMessage('An unexpected error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -339,6 +347,13 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
             <SessionsList taskId={task.id} />
           )}
         </div>
+
+        {/* Error Message */}
+        {errorMessage && (
+          <div className="mx-4 mb-2 p-3 bg-mc-accent-red/10 border border-mc-accent-red/30 rounded text-sm text-mc-accent-red">
+            {errorMessage}
+          </div>
+        )}
 
         {/* Footer - only show on overview tab */}
         {activeTab === 'overview' && (

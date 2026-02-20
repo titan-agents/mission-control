@@ -143,6 +143,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const projectDir = task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const taskProjectDir = `${projectsPath}/${projectDir}`;
     const missionControlUrl = getMissionControlUrl();
+    const apiToken = process.env.MC_API_TOKEN || '';
+    const authInstruction = apiToken ? `\nInclude header: Authorization: Bearer ${apiToken}` : '';
 
     const taskMessage = `${priorityEmoji} **NEW TASK ASSIGNED**
 
@@ -155,16 +157,18 @@ ${task.due_date ? `**Due:** ${task.due_date}\n` : ''}
 **OUTPUT DIRECTORY:** ${taskProjectDir}
 Create this directory and save all deliverables there.
 
-**IMPORTANT:** After completing work, you MUST call these APIs:
-1. Log activity: POST ${missionControlUrl}/api/tasks/${task.id}/activities
-   Body: {"activity_type": "completed", "message": "Description of what was done"}
-2. Register deliverable: POST ${missionControlUrl}/api/tasks/${task.id}/deliverables
-   Body: {"deliverable_type": "file", "title": "File name", "path": "${taskProjectDir}/filename.html"}
-3. Update status: PATCH ${missionControlUrl}/api/tasks/${task.id}
-   Body: {"status": "review"}
+**WHEN COMPLETE**, make ONE API call to report results:
+POST ${missionControlUrl}/api/webhooks/agent-completion
+Content-Type: application/json${authInstruction}
 
-When complete, reply with:
-\`TASK_COMPLETE: [brief summary of what you did]\`
+{
+  "task_id": "${task.id}",
+  "status": "review",
+  "summary": "Brief description of what you did",
+  "deliverables": [
+    {"type": "file", "title": "filename.ext", "path": "${taskProjectDir}/filename.ext"}
+  ]
+}
 
 If you need help or clarification, ask the orchestrator.`;
 

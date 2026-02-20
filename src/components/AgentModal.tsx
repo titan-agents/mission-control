@@ -18,6 +18,7 @@ export function AgentModal({ agent, onClose, workspaceId, onAgentCreated }: Agen
   const { addAgent, updateAgent, agents } = useMissionControl();
   const [activeTab, setActiveTab] = useState<'info' | 'soul' | 'user' | 'agents'>('info');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [defaultModel, setDefaultModel] = useState<string>('');
   const [modelsLoading, setModelsLoading] = useState(true);
@@ -75,21 +76,27 @@ export function AgentModal({ agent, onClose, workspaceId, onAgentCreated }: Agen
         }),
       });
 
-      if (res.ok) {
-        const savedAgent = await res.json();
-        if (agent) {
-          updateAgent(savedAgent);
-        } else {
-          addAgent(savedAgent);
-          // Notify parent if callback provided (e.g., for inline agent creation)
-          if (onAgentCreated) {
-            onAgentCreated(savedAgent.id);
-          }
-        }
-        onClose();
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        const message = errorData?.error || errorData?.details?.[0]?.message || `Failed to save agent (${res.status})`;
+        setErrorMessage(message);
+        return;
       }
+
+      const savedAgent = await res.json();
+      if (agent) {
+        updateAgent(savedAgent);
+      } else {
+        addAgent(savedAgent);
+        // Notify parent if callback provided (e.g., for inline agent creation)
+        if (onAgentCreated) {
+          onAgentCreated(savedAgent.id);
+        }
+      }
+      onClose();
     } catch (error) {
       console.error('Failed to save agent:', error);
+      setErrorMessage('An unexpected error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -320,6 +327,13 @@ export function AgentModal({ agent, onClose, workspaceId, onAgentCreated }: Agen
             </div>
           )}
         </form>
+
+        {/* Error Message */}
+        {errorMessage && (
+          <div className="mx-4 mb-2 p-3 bg-mc-accent-red/10 border border-mc-accent-red/30 rounded text-sm text-mc-accent-red">
+            {errorMessage}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-between p-4 border-t border-mc-border">

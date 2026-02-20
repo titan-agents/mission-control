@@ -28,18 +28,24 @@ function verifyWebhookSignature(signature: string, rawBody: string): boolean {
 
 /**
  * POST /api/webhooks/agent-completion
- * 
+ *
  * Receives completion notifications from agents.
- * Expected payload:
+ *
+ * Preferred all-in-one payload:
+ * {
+ *   "task_id": "uuid",
+ *   "status": "review",                    // optional, defaults to "testing"
+ *   "summary": "Built the auth system",
+ *   "deliverables": [                      // optional
+ *     {"type": "file", "title": "auth.ts", "path": "/workspace/auth.ts"},
+ *     {"type": "url",  "title": "Demo",    "path": "http://localhost:3000"}
+ *   ]
+ * }
+ *
+ * Legacy session-based payload:
  * {
  *   "session_id": "mission-control-engineering",
  *   "message": "TASK_COMPLETE: Built the authentication system"
- * }
- * 
- * Or can be called with task_id directly:
- * {
- *   "task_id": "uuid",
- *   "summary": "Completed the task successfully"
  * }
  */
 export async function POST(request: NextRequest) {
@@ -78,16 +84,41 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Task not found' }, { status: 404 });
       }
 
-      // Only move to testing if not already in testing, review, or done
-      // (Don't overwrite user's approval or testing results)
-      if (task.status !== 'testing' && task.status !== 'review' && task.status !== 'done') {
+      // Determine target status (default: testing, allow "review" or "done")
+      const allowedStatuses = ['testing', 'review', 'done'];
+      const targetStatus = allowedStatuses.includes(body.status) ? body.status : 'testing';
+
+      // Only move forward - don't overwrite a later status
+      const statusOrder = ['planning', 'inbox', 'assigned', 'in_progress', 'testing', 'review', 'done'];
+      const currentIdx = statusOrder.indexOf(task.status);
+      const targetIdx = statusOrder.indexOf(targetStatus);
+
+      const newStatus = targetIdx > currentIdx ? targetStatus : task.status;
+      if (newStatus !== task.status) {
         run(
           'UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?',
-          ['testing', now, task.id]
+          [newStatus, now, task.id]
         );
       }
 
-      // Log completion
+      // Register deliverables if provided
+      const deliverables: Array<{ type: string; title: string; path?: string; description?: string }> = body.deliverables || [];
+      for (const d of deliverables) {
+        run(
+          `INSERT INTO task_deliverables (id, task_id, deliverable_type, title, path, description, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [uuidv4(), task.id, d.type || 'file', d.title, d.path || null, d.description || null, now]
+        );
+      }
+
+      // Log completion activity
+      run(
+        `INSERT INTO task_activities (id, task_id, agent_id, activity_type, message, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), task.id, task.assigned_agent_id, 'completed', body.summary || 'Task finished', now]
+      );
+
+      // Log completion event
       run(
         `INSERT INTO events (id, type, agent_id, task_id, message, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
@@ -112,8 +143,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         task_id: task.id,
-        new_status: 'testing',
-        message: 'Task moved to testing for automated verification'
+        new_status: newStatus,
+        deliverables_registered: deliverables.length,
+        message: `Task moved to ${newStatus}`
       });
     }
 
